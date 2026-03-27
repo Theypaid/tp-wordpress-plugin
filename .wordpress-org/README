@@ -1,0 +1,15 @@
+WordPress.org Plugin Assets
+===========================
+
+This directory holds the image assets displayed on the WordPress.org plugin page.
+They are NOT shipped inside the plugin zip — they live in the /assets/ branch of
+the WordPress.org SVN repository.
+
+Required files (replace these placeholders with actual images):
+
+  banner-1544x500.png   — Hi-DPI plugin banner  (1544 x 500 px)
+  banner-772x250.png    — Standard plugin banner (772 x 250 px)
+  icon-256x256.png      — Hi-DPI plugin icon     (256 x 256 px)
+  icon-128x128.png      — Standard plugin icon   (128 x 128 px)
+
+See ASSETS_NEEDED.md in the plugin root for full design specs.
