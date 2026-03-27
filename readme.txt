@@ -97,13 +97,6 @@ No. Because TheyPaid is non-custodial, refunds must be processed manually from y
 
 Yes. The plugin fully supports both the classic WooCommerce checkout and the new block-based checkout editor.
 
-== Screenshots ==
-
-1. Coin selector on the WooCommerce checkout page
-2. Payment pending page with address, QR code, and countdown
-3. Tag/Memo warning for XRP and XLM payments
-4. Admin settings page with Test Connection button
-5. WooCommerce order note showing confirmed payment with transaction ID
 
 == Changelog ==
 
