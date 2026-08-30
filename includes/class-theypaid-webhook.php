@@ -4,7 +4,10 @@ defined( 'ABSPATH' ) || exit;
 
 class TheyPaid_Webhook {
 
+	private static ?self $instance = null;
+
 	public function __construct() {
+		self::$instance = $this;
 		add_action( 'rest_api_init', [ $this, 'register_routes' ] );
 	}
 
@@ -37,6 +40,7 @@ class TheyPaid_Webhook {
 		$invoice_data = $payload;
 		$api          = theypaid_get_api();
 		if ( $api ) {
+			$api->recheck_invoice( $invoice_id );
 			$verified = $api->get_invoice( $invoice_id );
 			if ( ! is_wp_error( $verified ) ) {
 				$invoice_data = $verified;
@@ -45,19 +49,40 @@ class TheyPaid_Webhook {
 			}
 		}
 
-		$status = $invoice_data['status'] ?? '';
+		self::apply_invoice( $invoice_data );
+
+		return new WP_REST_Response( [ 'status' => 'ok' ], 200 );
+	}
+
+	/**
+	 * Apply a verified invoice payload to matching WooCommerce / EDD records.
+	 *
+	 * @param array $invoice_data InvoiceGetResDto-shaped array.
+	 */
+	public static function apply_invoice( array $invoice_data ): void {
+		$instance = self::$instance;
+		if ( ! $instance ) {
+			return;
+		}
+
+		$invoice_id = sanitize_text_field( (string) ( $invoice_data['id'] ?? '' ) );
+		if ( '' === $invoice_id ) {
+			return;
+		}
+
+		$wc_order    = $instance->find_wc_order( $invoice_id );
+		$edd_payment = $instance->find_edd_payment( $invoice_id );
+		$status      = (string) ( $invoice_data['status'] ?? '' );
 
 		if ( $wc_order ) {
-			$this->log( sprintf( 'Webhook received: invoice %s, status %s, WC order #%s.', $invoice_id, $status, $wc_order->get_order_number() ) );
-			$this->process_wc_status( $wc_order, $status, $invoice_data );
+			$instance->log( sprintf( 'Invoice %s, status %s, WC order #%s.', $invoice_id, $status, $wc_order->get_order_number() ) );
+			$instance->process_wc_status( $wc_order, $status, $invoice_data );
 		}
 
 		if ( $edd_payment ) {
-			$this->log( sprintf( 'Webhook received: invoice %s, status %s, EDD payment #%d.', $invoice_id, $status, $edd_payment ) );
-			$this->process_edd_status( $edd_payment, $status, $invoice_data );
+			$instance->log( sprintf( 'Invoice %s, status %s, EDD payment #%d.', $invoice_id, $status, $edd_payment ) );
+			$instance->process_edd_status( $edd_payment, $status, $invoice_data );
 		}
-
-		return new WP_REST_Response( [ 'status' => 'ok' ], 200 );
 	}
 
 	/* ── WooCommerce ─────────────────────────────────────── */
@@ -74,6 +99,7 @@ class TheyPaid_Webhook {
 				$this->wc_handle_insufficient( $order, $invoice_data );
 				break;
 			case 'WAITING':
+			case 'CONFIRMING':
 				break;
 			default:
 				$this->log( sprintf( 'Webhook: unknown status "%s" for WC order #%s.', $status, $order->get_order_number() ) );
@@ -144,6 +170,7 @@ class TheyPaid_Webhook {
 				$this->edd_handle_insufficient( $payment_id, $invoice_data );
 				break;
 			case 'WAITING':
+			case 'CONFIRMING':
 				break;
 			default:
 				$this->log( sprintf( 'Webhook: unknown status "%s" for EDD payment #%d.', $status, $payment_id ) );

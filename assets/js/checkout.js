@@ -114,6 +114,8 @@
         handleExpired();
       } else if (status === 'insufficient') {
         handleInsufficient();
+      } else if (status === 'confirming') {
+        handleConfirming();
       }
     });
   }
@@ -159,6 +161,11 @@
     updateStatusUI('insufficient');
   }
 
+  function handleConfirming() {
+    if (finalStatus) return;
+    updateStatusUI('confirming');
+  }
+
   function advanceSteps() {
     var $stepPay = $('#theypaid-step-pay');
     var $stepDone = $('#theypaid-step-done');
@@ -190,14 +197,14 @@
 
     $el
       .removeClass(
-        'theypaid-pending__status-text--waiting theypaid-pending__status-text--paid theypaid-pending__status-text--expired theypaid-pending__status-text--insufficient'
+        'theypaid-pending__status-text--waiting theypaid-pending__status-text--paid theypaid-pending__status-text--expired theypaid-pending__status-text--insufficient theypaid-pending__status-text--confirming'
       )
       .addClass('theypaid-pending__status-text--' + status);
 
     var label = cfg.i18n[status] || cfg.i18n.waiting;
     $el.find('.theypaid-pending__status-label').text(label);
 
-    if (status !== 'waiting') {
+    if (status !== 'waiting' && status !== 'confirming') {
       $dot.css('animation', 'none').hide();
     }
   }

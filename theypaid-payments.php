@@ -3,7 +3,7 @@
  * Plugin Name: TheyPaid Crypto Payments
  * Plugin URI:  https://theypaid.io
  * Description: Accept cryptocurrency payments via the TheyPaid non-custodial payment gateway. Payments go directly to your own wallet — no KYC required.
- * Version:     1.0.0
+ * Version:     1.1.0
  * Requires at least: 6.0
  * Tested up to: 6.7
  * Requires PHP: 8.0
@@ -19,7 +19,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'THEYPAID_VERSION', '1.0.0' );
+define( 'THEYPAID_VERSION', '1.1.0' );
 define( 'THEYPAID_PLUGIN_FILE', __FILE__ );
 define( 'THEYPAID_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'THEYPAID_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -97,11 +97,76 @@ function theypaid_get_api(): ?TheyPaid_API {
 	$settings = get_option( 'woocommerce_theypaid_settings', [] );
 	$api_key  = $settings['api_key'] ?? '';
 
+	if ( empty( $api_key ) && function_exists( 'edd_get_option' ) ) {
+		$api_key = edd_get_option( 'theypaid_api_key', '' );
+	}
+
 	if ( empty( $api_key ) ) {
 		return null;
 	}
 
 	return new TheyPaid_API( $api_key );
+}
+
+/**
+ * Expiry timestamp from an invoice payload. Create returns expiresAt; GET returns expiredAt.
+ */
+function theypaid_invoice_expires_at( array $invoice, int $fallback_mins = 60 ): string {
+	if ( ! empty( $invoice['expiresAt'] ) ) {
+		return (string) $invoice['expiresAt'];
+	}
+	if ( ! empty( $invoice['expiredAt'] ) ) {
+		return (string) $invoice['expiredAt'];
+	}
+	$mins = isset( $invoice['expiresMin'] ) ? (int) $invoice['expiresMin'] : $fallback_mins;
+	return gmdate( 'Y-m-d\TH:i:s\Z', time() + ( $mins * 60 ) );
+}
+
+/**
+ * Invoice status, or CONFIRMING when WAITING with in-flight txs.
+ */
+function theypaid_resolve_status( array $invoice ): string {
+	$status = strtoupper( (string) ( $invoice['status'] ?? 'WAITING' ) );
+	if ( 'WAITING' !== $status ) {
+		return $status;
+	}
+
+	$txs = isset( $invoice['txs'] ) && is_array( $invoice['txs'] ) ? $invoice['txs'] : [];
+	foreach ( $txs as $tx ) {
+		if ( ! is_array( $tx ) || empty( $tx['status'] ) ) {
+			continue;
+		}
+		$tx_status = strtoupper( (string) $tx['status'] );
+		if ( 'CONFIRMING' === $tx_status || 'PENDING' === $tx_status ) {
+			return 'CONFIRMING';
+		}
+	}
+
+	return $status;
+}
+
+/**
+ * Recheck + GET invoice, then apply PAID/EXPIRED/INSUFFICIENT to matching orders.
+ *
+ * @return array|null Latest invoice payload, or null on failure.
+ */
+function theypaid_sync_remote_invoice( string $invoice_id ): ?array {
+	$api = theypaid_get_api();
+	if ( ! $api || '' === $invoice_id ) {
+		return null;
+	}
+
+	$api->recheck_invoice( $invoice_id );
+	$verified = $api->get_invoice( $invoice_id );
+	if ( is_wp_error( $verified ) || empty( $verified['id'] ) ) {
+		return null;
+	}
+
+	if ( class_exists( 'TheyPaid_Webhook' ) ) {
+		TheyPaid_Webhook::apply_invoice( $verified );
+	}
+
+	return $verified;
 }
 
 /**
@@ -195,6 +260,7 @@ add_action( 'template_redirect', function () {
 			'expired'      => __( 'This invoice has expired. Please place a new order.', 'theypaid-payments' ),
 			'insufficient' => __( 'Underpayment detected. The store has been notified — please contact support.', 'theypaid-payments' ),
 			'waiting'      => __( 'Waiting for payment…', 'theypaid-payments' ),
+			'confirming'   => __( 'Payment detected — waiting for confirmations…', 'theypaid-payments' ),
 			'copied'       => __( 'Copied!', 'theypaid-payments' ),
 		],
 	] );
@@ -224,6 +290,13 @@ function theypaid_ajax_check_status(): void {
 		wp_send_json_error( 'invalid_order', 400 );
 	}
 
+	$invoice_id = $order->get_meta( '_theypaid_invoice_id' );
+	$remote     = $invoice_id ? theypaid_sync_remote_invoice( (string) $invoice_id ) : null;
+	$order      = wc_get_order( $order_id );
+	if ( ! $order ) {
+		wp_send_json_error( 'invalid_order', 400 );
+	}
+
 	$wc_status = $order->get_status();
 
 	$status_map = [
@@ -234,8 +307,13 @@ function theypaid_ajax_check_status(): void {
 		'pending'    => 'waiting',
 	];
 
+	$status = $status_map[ $wc_status ] ?? 'waiting';
+	if ( 'waiting' === $status && $remote && 'CONFIRMING' === theypaid_resolve_status( $remote ) ) {
+		$status = 'confirming';
+	}
+
 	wp_send_json_success( [
-		'status' => $status_map[ $wc_status ] ?? 'waiting',
+		'status' => $status,
 	] );
 }
 
@@ -264,6 +342,12 @@ function theypaid_ajax_check_edd_status(): void {
 		wp_send_json_error( 'invalid_payment', 400 );
 	}
 
+	$invoice_id = function_exists( 'edd_get_payment_meta' )
+		? (string) edd_get_payment_meta( $payment_id, '_theypaid_invoice_id', true )
+		: '';
+	$remote     = $invoice_id ? theypaid_sync_remote_invoice( $invoice_id ) : null;
+	$edd_status = edd_get_payment_status( $payment_id );
+
 	$status_map = [
 		'complete'   => 'paid',
 		'publish'    => 'paid',
@@ -273,7 +357,12 @@ function theypaid_ajax_check_edd_status(): void {
 		'pending'    => 'waiting',
 	];
 
+	$status = $status_map[ $edd_status ] ?? 'waiting';
+	if ( 'waiting' === $status && $remote && 'CONFIRMING' === theypaid_resolve_status( $remote ) ) {
+		$status = 'confirming';
+	}
+
 	wp_send_json_success( [
-		'status' => $status_map[ $edd_status ] ?? 'waiting',
+		'status' => $status,
 	] );
 }

@@ -25,16 +25,29 @@ class TheyPaid_API {
 	 * Create a new payment invoice.
 	 *
 	 * @param array $params {
-	 *     @type string $assetId
-	 *     @type float  $amountInTether
-	 *     @type float  $acceptToleranceInTether
-	 *     @type int    $expiresMins
-	 *     @type string $callbackUrl
+ *     @type string $assetId
+ *     @type float  $amountInTether
+ *     @type float  $acceptToleranceInTether
+ *     @type int    $expiresMins Optional; live OpenAPI may ignore this. Use expiresAt from the response.
+ *     @type int    $requiredConfirmations Optional.
+ *     @type string $description Optional order note (max 255).
+ *     @type string $callbackUrl
+ *     @type string $redirectUrl Optional customer return URL.
 	 * }
 	 * @return array|WP_Error InvoiceCreateResDto on success, WP_Error on failure.
 	 */
 	public function create_invoice( array $params ): array|WP_Error {
 		return $this->post( '/invoice', $params );
+	}
+
+	/**
+	 * Ask TheyPaid to re-scan the chain for an invoice.
+	 *
+	 * @param string $invoice_id
+	 * @return array|WP_Error OkResult on success.
+	 */
+	public function recheck_invoice( string $invoice_id ): array|WP_Error {
+		return $this->post( '/invoice/' . rawurlencode( $invoice_id ) . '/recheck', (object) [] );
 	}
 
 	/**
@@ -76,7 +89,7 @@ class TheyPaid_API {
 		return $this->handle_response( $response, 'GET ' . $endpoint );
 	}
 
-	private function post( string $endpoint, array $body ): array|WP_Error {
+	private function post( string $endpoint, array|object $body ): array|WP_Error {
 		$response = wp_remote_post( $this->base_url . $endpoint, [
 			'timeout' => 15,
 			'headers' => array_merge( $this->headers(), [

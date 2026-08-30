@@ -32,7 +32,7 @@ class EDD_Gateway_TheyPaid {
 			'theypaid_api_key' => [
 				'id'   => 'theypaid_api_key',
 				'name' => __( 'API Key', 'theypaid-payments' ),
-				'desc' => __( 'Your TheyPaid merchant API key from merchant.theypaid.io.', 'theypaid-payments' ),
+				'desc' => __( 'Your TheyPaid merchant API key from dashboard.theypaid.io.', 'theypaid-payments' ),
 				'type' => 'password',
 				'size' => 'regular',
 			],
@@ -47,7 +47,7 @@ class EDD_Gateway_TheyPaid {
 			'theypaid_expires_mins' => [
 				'id'   => 'theypaid_expires_mins',
 				'name' => __( 'Invoice Expiry (minutes)', 'theypaid-payments' ),
-				'desc' => __( 'How long an invoice stays active before it expires.', 'theypaid-payments' ),
+				'desc' => __( 'Requested invoice lifetime. The payment page timer uses the expiry TheyPaid returns (expiresAt).', 'theypaid-payments' ),
 				'type' => 'number',
 				'size' => 'small',
 				'std'  => '60',
@@ -58,7 +58,7 @@ class EDD_Gateway_TheyPaid {
 			'theypaid_note' => [
 				'id'   => 'theypaid_note',
 				'name' => __( 'Note', 'theypaid-payments' ),
-				'desc' => __( 'Enabled coins are configured in your TheyPaid merchant dashboard.', 'theypaid-payments' ),
+				'desc' => __( 'Enabled coins are configured in your TheyPaid dashboard (dashboard.theypaid.io).', 'theypaid-payments' ),
 				'type' => 'descriptive_text',
 			],
 			'theypaid_webhook_note' => [
@@ -179,6 +179,8 @@ class EDD_Gateway_TheyPaid {
 			'acceptToleranceInTether' => $tolerance,
 			'expiresMins'             => $expires_mins ?: 60,
 			'callbackUrl'             => $webhook_url,
+			'description'             => sprintf( 'EDD payment #%d', $payment_id ),
+			'redirectUrl'             => edd_get_success_page_uri(),
 		] );
 
 		if ( is_wp_error( $result ) ) {
@@ -197,9 +199,11 @@ class EDD_Gateway_TheyPaid {
 		$asset_logo = $result['asset']['logo']['medium']['url'] ?? $result['asset']['logo']['original']['url'] ?? '';
 		edd_update_payment_meta( $payment_id, '_theypaid_asset_logo', esc_url_raw( $asset_logo ) );
 		edd_update_payment_meta( $payment_id, '_theypaid_amount_usd', floatval( $purchase_data['price'] ) );
+		edd_update_payment_meta( $payment_id, '_theypaid_expires_at', theypaid_invoice_expires_at( $result, $expires_mins ?: 60 ) );
 
-		$expires_at = gmdate( 'Y-m-d\TH:i:s\Z', time() + ( $expires_mins * 60 ) );
-		edd_update_payment_meta( $payment_id, '_theypaid_expires_at', $expires_at );
+		if ( ! empty( $result['paymentLink'] ) ) {
+			edd_update_payment_meta( $payment_id, '_theypaid_payment_link', esc_url_raw( (string) $result['paymentLink'] ) );
+		}
 
 		edd_insert_payment_note(
 			$payment_id,
@@ -259,6 +263,7 @@ class EDD_Gateway_TheyPaid {
 				'expired'      => __( 'This invoice has expired. Please place a new order.', 'theypaid-payments' ),
 				'insufficient' => __( 'Underpayment detected. The store has been notified — please contact support.', 'theypaid-payments' ),
 				'waiting'      => __( 'Waiting for payment…', 'theypaid-payments' ),
+				'confirming'   => __( 'Payment detected — waiting for confirmations…', 'theypaid-payments' ),
 				'copied'       => __( 'Copied!', 'theypaid-payments' ),
 			],
 		] );

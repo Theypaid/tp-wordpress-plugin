@@ -51,7 +51,7 @@ class WC_Gateway_TheyPaid extends WC_Payment_Gateway {
 				'title'       => __( 'API Key', 'theypaid-payments' ),
 				'type'        => 'password',
 				'description' => __(
-					'Your TheyPaid merchant API key. Found in your merchant dashboard at merchant.theypaid.io.',
+					'Your TheyPaid merchant API key. Found in your dashboard at dashboard.theypaid.io.',
 					'theypaid-payments'
 				),
 				'desc_tip'    => true,
@@ -73,7 +73,10 @@ class WC_Gateway_TheyPaid extends WC_Payment_Gateway {
 			'expires_mins' => [
 				'title'             => __( 'Invoice Expiry (minutes)', 'theypaid-payments' ),
 				'type'              => 'number',
-				'description'       => __( 'How long an invoice stays active before it expires.', 'theypaid-payments' ),
+				'description'       => __(
+					'Requested invoice lifetime. The payment page timer uses the expiry TheyPaid returns (expiresAt).',
+					'theypaid-payments'
+				),
 				'default'           => '60',
 				'desc_tip'          => true,
 				'custom_attributes' => [
@@ -94,7 +97,7 @@ class WC_Gateway_TheyPaid extends WC_Payment_Gateway {
 				'title'       => __( 'Note', 'theypaid-payments' ),
 				'type'        => 'title',
 				'description' => __(
-					'Enabled cryptocurrencies are configured in your TheyPaid merchant dashboard — this plugin always fetches the live list.',
+					'Enabled cryptocurrencies are configured in your TheyPaid dashboard (dashboard.theypaid.io) — this plugin always fetches the live list.',
 					'theypaid-payments'
 				),
 			],
@@ -236,6 +239,8 @@ class WC_Gateway_TheyPaid extends WC_Payment_Gateway {
 			'acceptToleranceInTether' => $tolerance,
 			'expiresMins'             => $expires_mins ?: 60,
 			'callbackUrl'             => $webhook_url,
+			'description'             => sprintf( 'WooCommerce order #%s', $order->get_order_number() ),
+			'redirectUrl'             => $order->get_checkout_order_received_url(),
 		] );
 
 		if ( is_wp_error( $result ) ) {
@@ -260,9 +265,11 @@ class WC_Gateway_TheyPaid extends WC_Payment_Gateway {
 		$asset_logo = $result['asset']['logo']['medium']['url'] ?? $result['asset']['logo']['original']['url'] ?? '';
 		$order->update_meta_data( '_theypaid_asset_logo', esc_url_raw( $asset_logo ) );
 		$order->update_meta_data( '_theypaid_amount_usd', floatval( $order->get_total() ) );
+		$order->update_meta_data( '_theypaid_expires_at', theypaid_invoice_expires_at( $result, $expires_mins ?: 60 ) );
 
-		$expires_at = gmdate( 'Y-m-d\TH:i:s\Z', time() + ( $expires_mins * 60 ) );
-		$order->update_meta_data( '_theypaid_expires_at', $expires_at );
+		if ( ! empty( $result['paymentLink'] ) ) {
+			$order->update_meta_data( '_theypaid_payment_link', esc_url_raw( (string) $result['paymentLink'] ) );
+		}
 
 		$order->set_status( 'pending', __( 'Awaiting TheyPaid crypto payment.', 'theypaid-payments' ) );
 		$order->save();

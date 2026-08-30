@@ -245,6 +245,11 @@
 	color: #9a3412;
 }
 
+.theypaid-pending__status-text--confirming {
+	background: #dbeafe;
+	color: #1e40af;
+}
+
 @keyframes theypaid-pulse {
 	0%, 100% { opacity: 1; }
 	50% { opacity: 0.3; }

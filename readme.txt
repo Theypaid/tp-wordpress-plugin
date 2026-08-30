@@ -4,7 +4,7 @@ Tags: crypto, cryptocurrency, bitcoin, woocommerce, payment gateway
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.0
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,7 +18,7 @@ Accept cryptocurrency payments directly to your own wallet — non-custodial, no
 
 * **Non-custodial** — Funds are sent directly to your wallet. TheyPaid never touches your money.
 * **No KYC required** — Start accepting crypto in minutes with no identity verification.
-* **Fair pricing** — Credits are consumed based on active invoice time, not payment amount. A $10 and a $10,000 invoice cost the same.
+* **Fair pricing** — Fees are a percentage of the invoice amount, with better rates on larger payments. You pay only on successful payments.
 * **Multi-coin support** — Accept BTC, LTC, BCH, DASH, DOGE, TON, XRP, XLM, USDT, and more. Configure enabled coins in your TheyPaid merchant dashboard.
 * **Works with WooCommerce and Easy Digital Downloads** — one plugin for both platforms.
 
@@ -53,7 +53,7 @@ Accept cryptocurrency payments directly to your own wallet — non-custodial, no
 
 1. Upload the `theypaid-payments` folder to `/wp-content/plugins/`, or install directly via the WordPress plugin installer.
 2. Activate the plugin through the **Plugins** menu.
-3. Sign up for a merchant account at [merchant.theypaid.io](https://merchant.theypaid.io) and get your API key.
+3. Sign up for a merchant account at [dashboard.theypaid.io](https://dashboard.theypaid.io) and get your API key.
 4. **For WooCommerce:** Go to **WooCommerce → Settings → Payments → TheyPaid Crypto**, enter your API key, and click **Test Connection**.
 5. **For Easy Digital Downloads:** Go to **Downloads → Settings → Payment Gateways**, enter your API key under the TheyPaid section.
 6. Configure your underpayment tolerance (default: $0.10) and invoice expiry (default: 60 minutes).
@@ -87,7 +87,7 @@ No. The plugin automatically sends your site's callback URL to TheyPaid when eac
 
 = How is TheyPaid pricing structured? =
 
-TheyPaid charges credits based on the duration an invoice is active — not the payment amount. A $10 invoice and a $10,000 invoice cost the same number of credits.
+TheyPaid charges a processing fee based on the invoice amount, with lower percentages on larger payments. You are charged only when a payment succeeds. See [theypaid.io/pricing](https://theypaid.io/pricing).
 
 = Can I issue refunds through the plugin? =
 
@@ -100,6 +100,12 @@ Yes. The plugin fully supports both the classic WooCommerce checkout and the new
 
 == Changelog ==
 
+= 1.1.0 =
+* Align with current TheyPaid Merchant API (expiresAt, description, redirectUrl, recheck, confirming txs)
+* Payment timer uses expiry returned by the API
+* Polling rechecks the invoice so orders can complete even if a webhook is delayed
+* Dashboard URL and amount-based fee copy updated
+
 = 1.0.0 =
 * Initial release
 * WooCommerce classic checkout gateway
@@ -110,6 +116,9 @@ Yes. The plugin fully supports both the classic WooCommerce checkout and the new
 * Admin settings with API key validation
 
 == Upgrade Notice ==
+
+= 1.1.0 =
+Updates invoice expiry handling and Merchant API fields. Get your API key from dashboard.theypaid.io.
 
 = 1.0.0 =
 Initial release of TheyPaid Crypto Payments.
