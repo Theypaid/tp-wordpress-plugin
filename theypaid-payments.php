@@ -3,7 +3,7 @@
  * Plugin Name: TheyPaid Crypto Payments
  * Plugin URI:  https://theypaid.io
  * Description: Accept cryptocurrency payments via the TheyPaid non-custodial payment gateway. Payments go directly to your own wallet — no KYC required.
- * Version:     1.1.0
+ * Version:     1.2.0
  * Requires at least: 6.0
  * Tested up to: 6.7
  * Requires PHP: 8.0
@@ -19,7 +19,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'THEYPAID_VERSION', '1.1.0' );
+define( 'THEYPAID_VERSION', '1.2.0' );
 define( 'THEYPAID_PLUGIN_FILE', __FILE__ );
 define( 'THEYPAID_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'THEYPAID_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -123,12 +123,17 @@ function theypaid_invoice_expires_at( array $invoice, int $fallback_mins = 60 ):
 }
 
 /**
- * Invoice status, or CONFIRMING when WAITING with in-flight txs.
+ * Invoice status, or CONFIRMING when paymentDetected or WAITING with in-flight txs.
  */
 function theypaid_resolve_status( array $invoice ): string {
 	$status = strtoupper( (string) ( $invoice['status'] ?? 'WAITING' ) );
 	if ( 'WAITING' !== $status ) {
 		return $status;
+	}
+
+	$detected = $invoice['paymentDetected'] ?? false;
+	if ( true === $detected || 1 === $detected || 'true' === $detected ) {
+		return 'CONFIRMING';
 	}
 
 	$txs = isset( $invoice['txs'] ) && is_array( $invoice['txs'] ) ? $invoice['txs'] : [];

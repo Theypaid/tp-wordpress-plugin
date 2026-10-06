@@ -4,7 +4,7 @@ Tags: crypto, cryptocurrency, bitcoin, woocommerce, payment gateway
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.0
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -100,6 +100,9 @@ Yes. The plugin fully supports both the classic WooCommerce checkout and the new
 
 == Changelog ==
 
+= 1.2.0 =
+* Use TheyPaid `paymentDetected` to show confirming status while the invoice is still WAITING
+
 = 1.1.0 =
 * Align with current TheyPaid Merchant API (expiresAt, description, redirectUrl, recheck, confirming txs)
 * Payment timer uses expiry returned by the API
@@ -116,6 +119,9 @@ Yes. The plugin fully supports both the classic WooCommerce checkout and the new
 * Admin settings with API key validation
 
 == Upgrade Notice ==
+
+= 1.2.0 =
+Reads the new paymentDetected invoice field so checkout can show confirming as soon as a payment is seen.
 
 = 1.1.0 =
 Updates invoice expiry handling and Merchant API fields. Get your API key from dashboard.theypaid.io.
